@@ -1,0 +1,14 @@
+# Compiled object files
+*.o
+
+# LiteShell executable
+liteshell
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Build directories
+build/
+dist/
