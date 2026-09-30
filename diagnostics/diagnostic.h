@@ -1,25 +1,43 @@
 #ifndef DIAGNOSTIC_H
 #define DIAGNOSTIC_H
 
+#include "../shell/executor.h"
+
 typedef enum
 {
     DIAG_SUCCESS,
     DIAG_COMMAND_NOT_FOUND,
-    DIAG_FILE_NOT_FOUND,
     DIAG_PERMISSION_DENIED,
-    DIAG_GENERAL_FAILURE
+    DIAG_GENERAL_FAILURE,
+    DIAG_PROCESS_SIGNAL
 } DiagnosticType;
+
+typedef enum
+{
+    CONFIDENCE_CONFIRMED,
+    CONFIDENCE_LIKELY,
+    CONFIDENCE_POSSIBLE,
+    CONFIDENCE_UNKNOWN
+} DiagnosticConfidence;
 
 typedef struct
 {
     DiagnosticType type;
-    int exit_code;
-    char message[256];
+
+    DiagnosticConfidence confidence;
+
+    char title[128];
+
+    char problem[256];
+
+    char cause[256];
+
     char suggestion[256];
+
 } DiagnosticResult;
 
-DiagnosticResult diagnose_exit_code(int exit_code);
+DiagnosticResult diagnose_operation(OperationResult *operation);
 
-void print_diagnostic(DiagnosticResult result);
+void print_diagnostic(DiagnosticResult *diagnostic);
 
 #endif

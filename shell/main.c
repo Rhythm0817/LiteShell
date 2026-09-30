@@ -4,23 +4,31 @@
 #include "parser.h"
 #include "executor.h"
 #include "../commands/builtin.h"
+#include "../diagnostics/diagnostic.h"
 
 int main(void)
 {
     char input[MAX_INPUT];
 
+    OperationResult last_operation;
+
+    memset(&last_operation, 0, sizeof(OperationResult));
+
+    int should_exit = 0;
+
     printf("=================================\n");
     printf("        Welcome to LiteShell\n");
     printf("=================================\n");
+
     printf("Type 'help' for available commands.\n\n");
 
-    while (1)
+    while (!should_exit)
     {
         printf("LiteShell> ");
         fflush(stdout);
 
         /*
-         * Read user input
+         * Read input
          */
         if (fgets(input, sizeof(input), stdin) == NULL)
         {
@@ -41,23 +49,35 @@ int main(void)
         }
 
         /*
-         * Built-in command: exit
+         * Handle LiteShell built-ins
          */
-        if (strcmp(input, "exit") == 0)
-        {
-            break;
-        }
+        int builtin_result =
+            handle_builtin(
+                input,
+                &last_operation,
+                &should_exit
+            );
 
-        /*
-         * Built-in commands
-         */
-        if (handle_builtin(input))
+        if (builtin_result == 1)
         {
             continue;
         }
 
         /*
-         * Parse command
+         * INSPECT command
+         */
+        if (builtin_result == 2)
+        {
+            DiagnosticResult diagnostic =
+                diagnose_operation(&last_operation);
+
+            print_diagnostic(&diagnostic);
+
+            continue;
+        }
+
+        /*
+         * Parse external command
          */
         Command command;
 
@@ -69,23 +89,22 @@ int main(void)
         /*
          * Execute command
          */
-        OperationResult result = execute_command(&command);
+        last_operation = execute_command(&command);
 
         /*
-         * Basic failure reporting
+         * We deliberately do not print the
+         * full diagnostic automatically yet.
+         *
+         * The user can request it with:
+         *
+         *     inspect
          */
-        if (!result.success)
+        if (!last_operation.success)
         {
-            if (result.signal != 0)
-            {
-                printf("LiteShell: process terminated by signal %d\n",
-                       result.signal);
-            }
-            else if (result.exit_code != -1)
-            {
-                printf("LiteShell: command failed (exit code %d)\n",
-                       result.exit_code);
-            }
+            printf(
+                "LiteShell: operation failed. "
+                "Use 'inspect' for details.\n"
+            );
         }
     }
 
