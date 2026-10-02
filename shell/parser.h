@@ -1,7 +1,10 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#define MAX_INPUT 1024
+#ifndef MAX_INPUT_LINE
+#define MAX_INPUT_LINE 1024
+#endif
+
 #define MAX_ARGS 64
 
 typedef struct
@@ -13,3 +16,4 @@ typedef struct
 int parse_command(char *input, Command *command);
 
 #endif
+

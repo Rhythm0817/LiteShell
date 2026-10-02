@@ -1,114 +1,133 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "parser.h"
 #include "executor.h"
+#include "history.h"
+#include "../core/command_registry.h"
 #include "../commands/builtin.h"
 #include "../diagnostics/diagnostic.h"
+#include "../observation/observation.h"
+#include "../ui/terminal.h"
+#include "../ui/screen.h"
 
 int main(void)
 {
-    char input[MAX_INPUT];
-
-    OperationResult last_operation;
-
-    memset(&last_operation, 0, sizeof(OperationResult));
-
+    char input[MAX_INPUT_LINE];
     int should_exit = 0;
 
-    printf("=================================\n");
-    printf("        Welcome to LiteShell\n");
-    printf("=================================\n");
+    history_init();
+    command_registry_init();
+    terminal_init();
 
-    printf("Type 'help' for available commands.\n\n");
+    screen_render_header();
+    printf("\nSystem ready. Type HELP for a list of native commands.\n\n");
+    screen_render_footer();
+    printf("\n");
 
     while (!should_exit)
     {
-        printf("LiteShell> ");
-        fflush(stdout);
+        if (terminal_check_resize())
+        {
+            printf("\n[Terminal resized: %dx%d]\n", terminal_get_cols(), terminal_get_rows());
+        }
 
-        /*
-         * Read input
-         */
+        screen_render_prompt();
+
         if (fgets(input, sizeof(input), stdin) == NULL)
         {
             break;
         }
 
-        /*
-         * Remove newline
-         */
-        input[strcspn(input, "\n")] = '\0';
+        /* Remove trailing newlines */
+        input[strcspn(input, "\r\n")] = '\0';
 
-        /*
-         * Ignore empty input
-         */
+        /* Ignore blank lines */
         if (strlen(input) == 0)
         {
             continue;
         }
 
-        /*
-         * Handle LiteShell built-ins
-         */
-        int builtin_result =
-            handle_builtin(
-                input,
-                &last_operation,
-                &should_exit
-            );
+        DiagnosticLevel level = DIAG_LEVEL_SUMMARY;
+        int target_id = -1;
 
-        if (builtin_result == 1)
+        BuiltinResult builtin_res = handle_builtin(
+            input,
+            history_get_latest(),
+            &should_exit,
+            &level,
+            &target_id
+        );
+
+        if (builtin_res == BUILTIN_EXIT)
+        {
+            break;
+        }
+
+        if (builtin_res == BUILTIN_HANDLED)
         {
             continue;
         }
 
-        /*
-         * INSPECT command
-         */
-        if (builtin_result == 2)
+        if (builtin_res == BUILTIN_DIAGNOSE || builtin_res == BUILTIN_INSPECT)
         {
-            DiagnosticResult diagnostic =
-                diagnose_operation(&last_operation);
+            const OperationResult *target_op = NULL;
 
-            print_diagnostic(&diagnostic);
+            if (target_id > 0)
+            {
+                target_op = history_get_by_id(target_id);
+                if (target_op == NULL)
+                {
+                    printf("Operation #%d not found in history.\n\n", target_id);
+                    continue;
+                }
+            }
+            else
+            {
+                target_op = history_get_latest();
+            }
 
+            if (target_op == NULL || target_op->command[0] == '\0')
+            {
+                printf("No operation is available for inspection.\n\n");
+                continue;
+            }
+
+            DiagnosticResult diag = diagnose_operation(target_op, level);
+            print_diagnostic(&diag);
             continue;
         }
 
-        /*
-         * Parse external command
-         */
+        /* Parse command string */
         Command command;
-
         if (parse_command(input, &command) == 0)
         {
             continue;
         }
 
-        /*
-         * Execute command
-         */
-        last_operation = execute_command(&command);
+        /* Check Command Registry for native handler */
+        const CommandEntry *entry = command_registry_lookup(command.args[0]);
+        OperationResult op_result;
 
-        /*
-         * We deliberately do not print the
-         * full diagnostic automatically yet.
-         *
-         * The user can request it with:
-         *
-         *     inspect
-         */
-        if (!last_operation.success)
+        if (entry != NULL && entry->handler != NULL)
         {
-            printf(
-                "LiteShell: operation failed. "
-                "Use 'inspect' for details.\n"
-            );
+            op_result = entry->handler(&command);
+        }
+        else
+        {
+            /* Fallback to external Linux binary execution */
+            op_result = execute_command(&command);
+        }
+
+        history_add(&op_result);
+
+        if (!op_result.success)
+        {
+            printf("\nOperation failed.\nUse 'diagnose' for details.\n\n");
         }
     }
-
-    printf("\nLeaving LiteShell.\n");
 
     return 0;
 }
