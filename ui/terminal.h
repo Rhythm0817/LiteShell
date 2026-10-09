@@ -16,6 +16,7 @@ TerminalSize terminal_get_size(void);
 int terminal_get_cols(void);
 int terminal_get_rows(void);
 int terminal_check_resize(void);
+int terminal_check_interrupted(void);
 void terminal_clear_screen(void);
 void terminal_move_cursor(int row, int col);
 

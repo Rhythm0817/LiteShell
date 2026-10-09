@@ -121,7 +121,18 @@ LiteShell uses a clean, native command naming convention that distinguishes file
 * `about` - Display LiteShell information & architecture.
 * `exit` - Exit LiteShell.
 
-### 7. Backward Compatibility Aliases
+### 7. Advanced Parsing, Redirection & Signals
+
+* **Quotation Handling**: Full support for single (`'...'`) and double (`"..."`) quotes allowing file paths with whitespace (e.g., `makef "/path/with space.txt"`).
+* **Standard I/O Redirection**:
+  * `> <file>` - Redirect stdout to file (create/truncate).
+  * `>> <file>` - Redirect stdout to file in append mode.
+  * `< <file>` - Redirect stdin from file.
+  * Compatible across both in-process native commands (`dir > list.txt`, `proc >> log.txt`) and external child executables.
+* **Variable & Exit Code Expansion**: Supports `$VAR`, `${VAR}`, `$?` (previous command exit code), and `$$` (shell PID).
+* **Signal Resilience**: Interactive `SIGINT` (Ctrl+C) handling prevents terminal aborts, preserving prompt state.
+
+### 8. Backward Compatibility Aliases
 
 Standard Unix/DOS aliases are supported transparently in the command registry:
 `cd` -> `cdir`, `pwd` -> `curdir`, `ls` -> `dir`, `cat` -> `typef`, `cp` -> `copyf`, `mv` -> `movef`, `rm` -> `delf`, `mkdir` -> `makedir`, `rmdir` -> `deldir`.
@@ -175,7 +186,12 @@ Test Case                      | Expected Diagnosis   | Actual Diagnosis     | C
 21. Native Copy Missing Dir    | DIRECTORY_NOT_FOUND  | DIRECTORY_NOT_FOUND  | Confirmed  |     0.03 | PASS
 22. Native Mkdir Already Exists| INVALID_ARGUMENT     | INVALID_ARGUMENT     | Confirmed  |     0.01 | PASS
 23. Permission Failure         | PERMISSION_DENIED    | PERMISSION_DENIED    | Confirmed  |     0.01 | PASS
+24. Quoted Path Makef          | SUCCESS              | SUCCESS              | Confirmed  |     0.04 | PASS
+25. Quoted Path Typef          | SUCCESS              | SUCCESS              | Confirmed  |     0.01 | PASS
+26. Redirection Out (>)        | SUCCESS              | SUCCESS              | Confirmed  |     0.20 | PASS
+27. Redirection Append (>>)    | SUCCESS              | SUCCESS              | Confirmed  |     0.07 | PASS
+28. Quoted Path Delf           | SUCCESS              | SUCCESS              | Confirmed  |     0.02 | PASS
 ----------------------------------------------------------------------------------------
-Evaluation Summary: 23 / 23 Tests Passed (100.0% Accuracy)
+Evaluation Summary: 28 / 28 Tests Passed (100.0% Accuracy)
 ========================================================================================
 ```

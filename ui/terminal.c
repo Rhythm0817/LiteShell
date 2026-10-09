@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -7,12 +8,19 @@
 #include "terminal.h"
 
 volatile sig_atomic_t g_terminal_resized = 0;
+volatile sig_atomic_t g_terminal_interrupted = 0;
 static TerminalSize g_cached_size = {25, 80};
 
 static void sigwinch_handler(int sig)
 {
     (void)sig;
     g_terminal_resized = 1;
+}
+
+static void sigint_handler(int sig)
+{
+    (void)sig;
+    g_terminal_interrupted = 1;
 }
 
 TerminalSize terminal_get_size(void)
@@ -50,11 +58,20 @@ void terminal_init(void)
     terminal_get_size();
 
     /* Register SIGWINCH signal handler for terminal resize */
-    struct sigaction sa;
-    sa.sa_handler = sigwinch_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGWINCH, &sa, NULL);
+    struct sigaction sa_winch;
+    memset(&sa_winch, 0, sizeof(sa_winch));
+    sa_winch.sa_handler = sigwinch_handler;
+    sigemptyset(&sa_winch.sa_mask);
+    sa_winch.sa_flags = SA_RESTART;
+    sigaction(SIGWINCH, &sa_winch, NULL);
+
+    /* Register SIGINT handler to prevent Ctrl+C from aborting the shell */
+    struct sigaction sa_int;
+    memset(&sa_int, 0, sizeof(sa_int));
+    sa_int.sa_handler = sigint_handler;
+    sigemptyset(&sa_int.sa_mask);
+    sa_int.sa_flags = 0; /* Interrupt blocking fgets() calls without auto-restart */
+    sigaction(SIGINT, &sa_int, NULL);
 }
 
 int terminal_get_cols(void)
@@ -83,6 +100,16 @@ int terminal_check_resize(void)
     {
         g_terminal_resized = 0;
         terminal_get_size();
+        return 1;
+    }
+    return 0;
+}
+
+int terminal_check_interrupted(void)
+{
+    if (g_terminal_interrupted)
+    {
+        g_terminal_interrupted = 0;
         return 1;
     }
     return 0;
